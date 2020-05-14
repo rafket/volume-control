@@ -7,28 +7,42 @@ VOLUME=$(pactl list sinks | grep -A15 -P "(\#|№)$SINK" | grep -P "\d+\s*\/\s*\
 if [[ "${1:0:1}" = "+" || "${1:0:1}" = "-" ]]
 then
     pactl set-sink-volume @DEFAULT_SINK@ $1
-else
+elif [[ "$1" = "mute" ]]
+then
     pactl set-sink-mute @DEFAULT_SINK@ toggle
+elif [[ "$1" = "micmute" ]]
+then
+    pactl set-source-mute @DEFAULT_SOURCE@ toggle
+    USEMIKE=1
+    MIKEMUTED=$(pacmd list-sources | grep -e "index" -e "muted" | grep "* index" -A1 | grep muted | awk "{print \$2}")
 fi
 
 VOLUME=$(pactl list sinks | grep -A15 -P "(\#|№)$SINK" | grep -P "\d+\s*\/\s*\d+\%" | head -1 | awk "{print \$5}")
 VOLUME=${VOLUME:0:-1}
 MUTED=$(pactl list sinks | grep -A15 -P "(\#|№)$SINK" | grep Mute | awk "{print \$2}")
 
-if [[ $MUTED == "yes" ]]
+if [[ $USEMIKE == 1 ]]
 then
-    ICON="muted"
+    if [[ $MIKEMUTED == "yes" ]]
+    then
+        ICON="microphone-disabled"
+    else
+        ICON="microphone-sensitivity-high"
+    fi
+elif [[ $MUTED == "yes" ]]
+then
+    ICON="audio-volume-muted"
 elif [[ "$VOLUME" == "0" ]]
 then
-    ICON="low"
+    ICON="audio-volume-low"
 elif [[ "$VOLUME" -lt "33" ]]
 then
-    ICON="low"
+    ICON="audio-volume-low"
 elif [[ "$VOLUME" -lt "66" ]]
 then
-    ICON="medium"
+    ICON="audio-volume-medium"
 else
-    ICON="high"
+    ICON="audio-volume-high"
 fi
 
 NOTIFY_ARGS=(--session
@@ -42,7 +56,7 @@ then
     REPLACE_ID=$(< /tmp/.volume-notification-lock)
 fi
 echo "$REPLACE_ID"
-ID=$(gdbus call "${NOTIFY_ARGS[@]}"  --method org.freedesktop.Notifications.Notify "volume-control" "$REPLACE_ID" "/usr/share/icons/Adwaita/scalable/devices/audio-volume-$ICON-symbolic.svg" "$VOLUME %" "" [] "$HINTS" "int32 2000" | sed 's/(uint32 \(.*\),)/\1/')
+ID=$(gdbus call "${NOTIFY_ARGS[@]}"  --method org.freedesktop.Notifications.Notify "volume-control" "$REPLACE_ID" "/usr/share/icons/Adwaita/scalable/status/$ICON-symbolic.svg" "$VOLUME %" "" [] "$HINTS" "int32 2000" | sed 's/(uint32 \(.*\),)/\1/')
 echo $ID
 
 echo $ID >&3
